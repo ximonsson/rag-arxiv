@@ -1,7 +1,3 @@
-/*
-	Prepare data for ingestion of vector database.
-*/
-
 CREATE OR REPLACE MACRO text_clean(txt) AS trim(regexp_replace(txt, '\s+', ' ', 'g'));
 
 CREATE OR REPLACE VIEW arxiv_filtered AS

@@ -1,7 +1,6 @@
-/**
-	Load the raw data, make some cleaning such as removing the nested columns
-	and then store as parquet.
-*/
+CREATE OR REPLACE TABLE arxiv_raw AS (
+	SELECT * FROM read_json(getenv('ARXIV_RAW_JSON'), auto_detect=true, format='auto')
+);
 
 CREATE OR REPLACE TABLE arxiv AS
 	SELECT
@@ -24,9 +23,4 @@ CREATE OR REPLACE TABLE arxiv AS
 		strptime(versions[-1]['created'], '%a, %d %b %Y %H:%M:%S %Z') AS vlast_created_date,
 		update_date,
 	FROM
-		read_json
-		(
-			'/home/ximon/data/arxiv-metadata-oai-snapshot.json',
-			auto_detect=true,
-			format='auto'
-		);
+		arxiv_raw;
