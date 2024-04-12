@@ -14,4 +14,4 @@ fi
 
 DST=$1
 DATASET=Cornell-University/arxiv
-micromamba run -n rag kaggle datasets download -p $DST -d $DATASET
+kaggle datasets download -p $DST -d $DATASET
