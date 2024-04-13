@@ -1,12 +1,10 @@
-DATADIR=$HOME/data
 FILENAME=arxiv-metadata-oai-snapshot.json
-FILE=$DATADIR/$FILENAME
-DB=$DATADIR/rag.db
+FILE=/tmp/$FILENAME
 
+# only extract if file does not exist already?
 if [ ! -e $FILE ]; then
-	unzip $DATADIR/arxiv.zip -d $DATADIR
+	unzip $HOME/data/arxiv.zip -d /tmp/
 fi
 
-duckdb $DB < load.sql
-
-#rm $FILE
+DB=":memory:"
+ARXIV_RAW_JSON_FP=$FILE EXPORT_DST=$HOME/data/arxiv.parquet duckdb $DB < data/load/load.sql
