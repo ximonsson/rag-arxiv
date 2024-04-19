@@ -79,8 +79,7 @@ def search(
     q: str, docs: list[str], db: torch.Tensor, nret: int = 20, nx: int = 5
 ) -> torch.Tensor:
     _, i = retrieve(q, db, nret)
-    # TODO don't like the converting to pl.Series and then back to list
-    s, j = rerank(q, pl.Series(docs)[i.numpy()].to_list(), nx)
+    s, j = rerank(q, np.array(docs)[i.numpy()].tolist(), nx)
     return s, i[j]
 
 
