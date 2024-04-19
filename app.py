@@ -1,58 +1,56 @@
 import streamlit as st
 import db
 import torch
-import polars as pl
 import plotly.graph_objects as go
 import duckdb
-import umap
 import sklearn.cluster
+import os
 
 torch.manual_seed(42)
-con = duckdb.connect("/home/ximon/data/rag.db", read_only=True)
 
 st.set_page_config(layout="centered")
 
 st.title("Simon's Super Awesome Fantastic RAG System")
 st.caption("Arxiv abstracts.")
 
+DOC_FP = os.environ["ARXIV_DOC_FP"]
+EMB_FP = os.environ["ARXIV_DOC_EMBEDDING_FP"]
+CLUSTER_FP = os.environ["ARXIV_DOC_CLUSTER_FP"]
+
 
 @st.cache_resource
-def ld_df():
-    return con.sql("SELECT * FROM document").pl()
+def ld_doc():
+    """Load documents and joins the clusters they have been assigned."""
+
+    return duckdb.sql(
+        f"""
+    CREATE TABLE doc AS
+        SELECT doc.*, cluster.* FROM
+            (SELECT * FROM read_parquet('{DOC_FP}')) AS doc JOIN
+            (SELECT * FROM read_parquet('{CLUSTER_FP}')) AS cluster ON
+            cluster.eid = doc.eid
+    """
+    )
 
 
 @st.cache_resource
 def ld_embs():
-    return torch.load("/home/ximon/data/rag/embeddings.pt")
+    return torch.load(EMB_FP)
 
 
-@st.cache_resouce
-def dim_reduce(x, d):
-    return umap.UMAP(n_neighbors=15, n_components=d, metric="cosine").fit_transform(x)
-
-
-@st.cache_resource
-def cluster(x):
-    return sklearn.cluster.HDBSCAN(min_cluster_size=15).fit(x)
-
-
-df = ld_df()
+ld_doc()
 embs = ld_embs()
-
-# U, S, V = torch.pca_lowrank(embs)
-# embs_pca = embs @ V[:, :3]
-
-clusters = cluster(dim_reduce(embs, 5))
-embs_3d = dim_reduce(embs, 3)
+embs_3d = db.dim_reduce(embs, 3)  # used for plotting
 
 st.write(f"{embs.shape[-1]} documents in database")
 
 
 def plot(prompt):
-    color = (
-        db.distance(db.embed([prompt]), embs)
-        if prompt != ""
-        else torch.zeros(embs.shape[0])
+    N = embs.shape[0]  # all documents might not be embedded
+
+    color = db.distance(db.embed([prompt]), embs) if prompt != "" else torch.zeros(N)
+    titles = (
+        duckdb.sql(f"SELECT title FROM doc LIMIT {N}").list("title").fetchall()[0][0]
     )
 
     fig = go.Figure(
@@ -62,7 +60,7 @@ def plot(prompt):
                 y=embs_3d[:, 1],
                 z=embs_3d[:, 2],
                 mode="markers",
-                text=df["title"][: embs.shape[0]],
+                text=titles,
                 marker=dict(
                     size=1,
                     colorscale="reds",
@@ -77,8 +75,11 @@ def plot(prompt):
 
 
 def search():
-    _, i = db.search(prompt, df["document"].to_list(), embs, n_retrieve, 5)
-    return df[i.numpy()]
+    docs = duckdb.sql("SELECT document FROM doc").fetchall()[0][0]
+    _, i = db.search(prompt, docs, embs, n_retrieve, 5)
+    return duckdb.execute(
+        "SELECT * FROM doc WHERE rowid IN (SELECT unnest(?))", [i.numpy()]
+    ).df()
 
 
 n_retrieve = st.slider("Number of documents to retrieve", 0, 200, 20)
@@ -90,6 +91,6 @@ if prompt != "":
     answer = db.generate(prompt, docs["document"].to_list())
     st.markdown(f"`> {answer['answer']}`")
     st.divider()
-    st.dataframe(docs[:, ["id", "title", "authors"]].to_pandas())
+    st.dataframe(docs[:, ["id", "title", "authors"]])
     # plot our data
     st.plotly_chart(plot(prompt), use_container_width=True)
