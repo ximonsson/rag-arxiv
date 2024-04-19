@@ -7,4 +7,5 @@ if [ ! -e $FILE ]; then
 fi
 
 DB=":memory:"
-ARXIV_RAW_JSON_FP=$FILE EXPORT_DST=$HOME/data/arxiv.parquet duckdb $DB < data/load/load.sql
+ARXIV_RAW_JSON_FP=$FILE duckdb $DB < data/load/load.sql
+mv arxiv.parquet $ARXIV_CLEAN_FP

@@ -28,4 +28,4 @@ CREATE OR REPLACE TABLE arxiv AS
 		)
 	);
 
-COPY arxiv TO '/home/ximon/data/arxiv.parquet' (FORMAT 'parquet');
+COPY arxiv TO arxiv.parquet (FORMAT 'parquet');

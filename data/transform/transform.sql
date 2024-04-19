@@ -1,3 +1,5 @@
+CREATE OR REPLACE TABLE arxiv AS SELECT * FROM read_parquet(getenv('ARXIV_CLEAN_FP'));
+
 CREATE OR REPLACE MACRO text_clean(txt) AS trim(regexp_replace(txt, '\s+', ' ', 'g'));
 
 CREATE OR REPLACE VIEW arxiv_filtered AS
@@ -26,3 +28,5 @@ CREATE OR REPLACE TABLE document AS
 		FROM
 			arxiv_filtered
 	);
+
+COPY document TO 'doc.parquet' (FORMAT 'parquet');
