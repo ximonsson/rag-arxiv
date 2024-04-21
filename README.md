@@ -33,6 +33,8 @@ The relevant articles are filtered out and a column `body` is created in the for
 
 ## Vector Database
 
+The vector database implementation can be found in [db](./db). This only really implements functionality for a vector database, storage is handled by the client.
+
 ### Ingestion
 
 ### Clustering & Topic Modelling
