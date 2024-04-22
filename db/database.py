@@ -138,18 +138,18 @@ class Database:
 
         pass
 
-    def ingest(self, doc: list[str]):
+    def ingest(self, doc):
         """
         Ingest a set of documents to the database.
 
         This will retrigger clustering and topic modelling.
         """
 
-        # TODO read parquet file created in ELT
+        data = self.quack.sql("SELECT body FROM doc").fetchnumpy()["body"]
 
         ys = [
-            self.__embed__(doc[i : i + bs])
-            for i in tqdm(torch.arange(0, len(doc), step=bs))
+            self.__embed__(data[i : i + bs])
+            for i in tqdm(torch.arange(0, len(data), step=bs))
         ]
         ys = torch.cat(ys, 0)
         embedding = pl.DataFrame(pl.Series("embedding", ys))
