@@ -1,0 +1,10 @@
+storage:
+  backend: duckdb
+  path: "arxiv.db"
+models:
+  retrieval: "sentence-transformers/multi-qa-MiniLM-L6-cos-v1"
+  generative: "deepset/tinyroberta-squad2"
+  cross: "cross-encoder/ms-marco-MiniLM-L-4-v2"
+topic:
+  min-cluster-size: 15
+  cluster-dimensions: 5
