@@ -116,6 +116,7 @@ class Database:
         docs = self.search(q)
         return self.__gen__(q, docs["body"])
 
+    @staticmethod
     def __dim_reduce__(x: torch.Tensor, d: int) -> torch.Tensor:
         return torch.Tensor(
             umap.UMAP(n_neighbors=15, n_components=d, metric="cosine").fit_transform(x)
@@ -185,7 +186,9 @@ class Database:
         Return embeddings for the documents.
         """
 
-        return torch.Tensor([])
+        x = self.quack.sql("SELECT embedding FROM doc").fetchnumpy()["embedding"]
+        n, m = len(x), len(x[0])
+        return torch.Tensor(np.concatenate(x).reshape((n, m)))
 
     def sql(self, stmt: str) -> duckdb.duckdb.DuckDBPyRelation:
         """
@@ -193,3 +196,15 @@ class Database:
         """
 
         return self.quack.sql(stmt)
+
+    def distance(self, q: str) -> torch.Tensor:
+        """
+        Distance of query from the documents.
+        """
+
+        return torch.Tensor(
+            self.quack.execute(
+                "SELECT list_cosine_similarity(?, embedding) AS distance FROM doc",
+                [self.__embed__(q).numpy()[0]],
+            ).fetchnumpy()["distance"]
+        )

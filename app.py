@@ -13,47 +13,26 @@ st.set_page_config(layout="centered")
 st.title("Simon's Super Awesome Fantastic RAG System")
 st.caption("Arxiv abstracts.")
 
-#DOC_FP = os.environ["ARXIV_DOC_FP"]
-#EMB_FP = os.environ["ARXIV_DOC_EMBEDDING_FP"]
-#CLUSTER_FP = os.environ["ARXIV_DOC_CLUSTER_FP"]
-
-
-"""
-@st.cache_resource
-def ld_doc():
-    """Load documents and joins the clusters they have been assigned."""
-
-    return duckdb.sql(
-        f"""
-    CREATE TABLE doc AS
-        SELECT doc.*, cluster.* FROM
-            (SELECT * FROM read_parquet('{DOC_FP}')) AS doc JOIN
-            (SELECT * FROM read_parquet('{CLUSTER_FP}')) AS cluster ON
-            cluster.eid = doc.eid
-    """
-    )
-    """
-
 
 @st.cache_resource
-def ld_embs():
-    return torch.load(EMB_FP)
+def ld():
+    DB = db.Database.from_config_file("db.yml")
+    embs = DB.embeddings()
+    embs_3d = db.Database.__dim_reduce__(embs, 3)  # used for plotting
+
+    return DB, embs, embs_3d
 
 
-DB = db.Database.from_config_file("db.yml")
-embs_3d = db.dim_reduce(embs, 3)  # used for plotting
+DB, embs, embs_3d = ld()
 
-st.write(f"{embs.shape[-1]} documents in database")
+st.write(f"{embs.shape[0]} documents in database")
 
 
 def plot(prompt):
     N = embs.shape[0]  # all documents might not be embedded
 
-    color = db.distance(db.embed([prompt]), embs) if prompt != "" else torch.zeros(N)
-    titles = (
-        duckdb.sql(f"SELECT title FROM doc LIMIT {N}").list("title").fetchall()[0][0]
-    )
-
+    color = DB.distance(prompt) if prompt != "" else torch.zeros(N)
+    titles = DB.docs()["title"].fetchall()
     fig = go.Figure(
         data=[
             go.Scatter3d(
@@ -85,12 +64,12 @@ prompt = st.text_input("What would you want to ask?")
 
 if prompt != "":
     # most relevant documents
-    docs = search().df()
+    docs = search()
 
     # generate an answer
     answer = DB.query(prompt)
     st.markdown(f"`> {answer['answer']}`")
     st.divider()
-    st.dataframe(docs[:, ["id", "title", "authors"]])
+    st.dataframe(docs[:, ["id", "title", "authors"]].to_pandas())
     # plot our data
     st.plotly_chart(plot(prompt), use_container_width=True)
