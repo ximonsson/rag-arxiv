@@ -10,8 +10,6 @@ There are some environment variables that need to be set for the system to work.
 - `ARXIV_RAW_DIR` - where to store the raw data from the extraction step.
 - `ARXIV_CLEAN_FP` - where to store the cleaned file from the load step.
 - `ARXIV_DOC_FP` - where to store the documents from the transform step.
-- `ARXIV_DOC_EMBEDDING_FP` - where to store the embeddings for the vector database.
-- `ARXIV_DOC_CLUSTER_FP` - where to store the clusters.
 
 
 ## Data: ELT Pipeline
