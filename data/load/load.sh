@@ -3,7 +3,7 @@ FILE=/tmp/$FILENAME
 
 # only extract if file does not exist already?
 if [ ! -e $FILE ]; then
-	unzip $HOME/data/arxiv.zip -d /tmp/
+	unzip $ARXIV_RAW_DIR/arxiv.zip -d /tmp/
 fi
 
 DB=":memory:"
