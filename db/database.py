@@ -180,6 +180,13 @@ class Database:
 
         return self.quack.sql("SELECT * FROM doc")
 
+    def embeddings(self) -> torch.Tensor:
+        """
+        Return embeddings for the documents.
+        """
+
+        return torch.Tensor([])
+
     def sql(self, stmt: str) -> duckdb.duckdb.DuckDBPyRelation:
         """
         PRO MODE.

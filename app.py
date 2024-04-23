@@ -13,11 +13,12 @@ st.set_page_config(layout="centered")
 st.title("Simon's Super Awesome Fantastic RAG System")
 st.caption("Arxiv abstracts.")
 
-DOC_FP = os.environ["ARXIV_DOC_FP"]
-EMB_FP = os.environ["ARXIV_DOC_EMBEDDING_FP"]
-CLUSTER_FP = os.environ["ARXIV_DOC_CLUSTER_FP"]
+#DOC_FP = os.environ["ARXIV_DOC_FP"]
+#EMB_FP = os.environ["ARXIV_DOC_EMBEDDING_FP"]
+#CLUSTER_FP = os.environ["ARXIV_DOC_CLUSTER_FP"]
 
 
+"""
 @st.cache_resource
 def ld_doc():
     """Load documents and joins the clusters they have been assigned."""
@@ -31,6 +32,7 @@ def ld_doc():
             cluster.eid = doc.eid
     """
     )
+    """
 
 
 @st.cache_resource
@@ -38,8 +40,7 @@ def ld_embs():
     return torch.load(EMB_FP)
 
 
-ld_doc()
-embs = ld_embs()
+DB = db.Database.from_config_file("db.yml")
 embs_3d = db.dim_reduce(embs, 3)  # used for plotting
 
 st.write(f"{embs.shape[-1]} documents in database")
@@ -75,11 +76,7 @@ def plot(prompt):
 
 
 def search():
-    docs = duckdb.sql("SELECT document FROM doc").fetchall()[0][0]
-    _, i = db.search(prompt, docs, embs, n_retrieve, 5)
-    return duckdb.execute(
-        "SELECT * FROM doc WHERE rowid IN (SELECT unnest(?))", [i.numpy()]
-    ).df()
+    return DB.search(prompt, n_retrieve, 5)
 
 
 n_retrieve = st.slider("Number of documents to retrieve", 0, 200, 20)
@@ -87,8 +84,11 @@ prompt = st.text_input("What would you want to ask?")
 
 
 if prompt != "":
-    docs = search()
-    answer = db.generate(prompt, docs["document"].to_list())
+    # most relevant documents
+    docs = search().df()
+
+    # generate an answer
+    answer = DB.query(prompt)
     st.markdown(f"`> {answer['answer']}`")
     st.divider()
     st.dataframe(docs[:, ["id", "title", "authors"]])
