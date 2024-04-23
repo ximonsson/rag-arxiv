@@ -74,18 +74,17 @@ class Database:
 
         q_ = self.__embed__(q)
         return self.quack.execute(
-            """SELECT * FROM doc ORDER BY list_cosine_similiarity(?, embedding) DESC LIMIT ?""",
-            q_.numpy(),
-            n,
+            """SELECT * FROM doc ORDER BY list_cosine_similarity(?, embedding) DESC LIMIT ?""",
+            [q_[0].numpy(), n],
         ).pl()
 
-    def rerank(self, q: str, doc: list[str]) -> tuple:
+    def rerank(self, q: str, doc: list[str], n: int) -> tuple:
         """
         Use cross encoder to rerank the documents that were previously retrieved.
         """
 
         x = self.xenc_tokenizer(
-            [q] * len(docs), docs, padding=True, truncation=True, return_tensors="pt"
+            [q] * len(doc), doc, padding=True, truncation=True, return_tensors="pt"
         )
 
         with torch.no_grad():
@@ -98,9 +97,9 @@ class Database:
         Document search for the most relevant documents.
         """
 
-        docs = self.retrieve(q, db, nret)
+        docs = self.retrieve(q, nret)
         s, j = self.rerank(q, docs["body"].to_list(), nx)
-        return docs[j]
+        return docs[j.numpy()]
 
     def __gen__(self, q: str, docs: list[str]) -> str:
         """
