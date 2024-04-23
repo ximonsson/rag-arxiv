@@ -13,6 +13,7 @@ from tqdm import tqdm
 import polars as pl
 import hdbscan
 import umap
+import yaml
 
 
 class Database:
@@ -35,7 +36,7 @@ class Database:
 
         # Generative model
         self.gen_model = transformers.pipeline(
-            "question-answering", model=generative, tokenizer=gen_model_name
+            "question-answering", model=generative, tokenizer=generative
         )
 
     def __ld_storage__(self, backend: str = "duckdb", path: Union[str, None] = None):
@@ -44,6 +45,14 @@ class Database:
     def __init__(self, **kwargs):
         self.__ld_models__(**kwargs["models"])
         self.__ld_storage__(**kwargs["storage"])
+
+    def from_config_file(fp: str) -> "Database":
+        """
+        Create new Database instance from config file path.
+        """
+
+        with open(fp) as f:
+            return Database(**yaml.safe_load(f))
 
     def __embed__(self, doc: Union[str, list[str]]) -> torch.Tensor:
         x = self.retrieval_tokenizer(
@@ -113,23 +122,17 @@ class Database:
             umap.UMAP(n_neighbors=15, n_components=d, metric="cosine").fit_transform(x)
         )
 
-    def __cluster__(self):
+    def __cluster__(self, x: torch.Tensor) -> np.ndarray:
         """
         Cluster the documents in the database.
         """
 
-        x = torch.Tensor(
-            self.quack.sql("SELECT embedding FROM doc").pl()["embedding"].to_list()
+        y = (
+            hdbscan.HDBSCAN(min_cluster_size=15)
+            .fit(Database.__dim_reduce__(x, 5))
+            .labels_
         )
-        y = hdbscan.HDBSCAN(min_cluster_size=15).fit(self.__dim_reduce__(x, 5)).labels_
-        cluster = pl.DataFrame(pl.Series("cluster", y))
-
-        self.quack.sql(
-            """
-        CREATE OR REPLACE TABLE doc AS
-        SELECT doc.*, cluster.* FROM doc POSITIONAL JOIN cluster
-        """
-        )
+        return y
 
     def __topics__(self):
         """
@@ -138,28 +141,49 @@ class Database:
 
         pass
 
-    def ingest(self, doc):
+    def ingest(self, doc: Union[duckdb.duckdb.DuckDBPyRelation, pl.DataFrame]):
         """
         Ingest a set of documents to the database.
 
         This will retrigger clustering and topic modelling.
         """
 
-        data = self.quack.sql("SELECT body FROM doc").fetchnumpy()["body"]
+        data = self.quack.sql("SELECT body FROM doc").list("body").fetchall()[0][0]
 
+        # embed all the documents
+        bs = 1  # TODO this is only on CPU though!
         ys = [
             self.__embed__(data[i : i + bs])
             for i in tqdm(torch.arange(0, len(data), step=bs))
         ]
         ys = torch.cat(ys, 0)
-        embedding = pl.DataFrame(pl.Series("embedding", ys))
+        embedding = pl.DataFrame(pl.Series("embedding", ys.numpy()))
+
+        # cluster documents
+        clusters = self.__cluster__(ys)
+        topic = pl.DataFrame(pl.Series("topic", clusters))
 
         self.quack.sql(
             """
         CREATE OR REPLACE TABLE doc AS
-            SELECT doc.*, embedding.* FROM doc POSITIONAL JOIN embedding
+            SELECT doc.*, embedding.*, topic.*
+            FROM doc POSITIONAL JOIN embedding POSITIONAL JOIN topic
         """
         )
 
-        self.__cluster__()
+        # generate topics for the clusters
         self.__topics__()
+
+    def docs(self) -> duckdb.duckdb.DuckDBPyRelation:
+        """
+        Return documents that are stored in the database.
+        """
+
+        return self.quack.sql("SELECT * FROM doc")
+
+    def sql(self, stmt: str) -> duckdb.duckdb.DuckDBPyRelation:
+        """
+        PRO MODE.
+        """
+
+        return self.quack.sql(stmt)
