@@ -50,6 +50,7 @@ class Database:
     def __init__(self, read_only: bool = False, **kwargs):
         self.__ld_models__(**kwargs["models"])
         self.__ld_storage__(read_only=read_only, **kwargs["storage"])
+        self.__embeddings__ = None
 
     def from_config_file(fp: str, read_only: bool = False) -> "Database":
         """
@@ -77,10 +78,9 @@ class Database:
         Retrieve documents that are most similar to query.
         """
 
-        q_ = self.__embed__(q)
+        _, i = torch.topk(self.distance(q), n)
         return self.quack.execute(
-            """SELECT * FROM doc ORDER BY list_cosine_similarity(?, embedding) DESC LIMIT ?""",
-            [q_[0].numpy(), n],
+            "SELECT * FROM doc WHERE rowid IN (SELECT unnest(?))", [i.numpy()]
         ).pl()
 
     def rerank(self, q: str, doc: list[str], n: int) -> tuple:
@@ -146,14 +146,14 @@ class Database:
 
         pass
 
-    def ingest(self, doc: Union[duckdb.duckdb.DuckDBPyRelation, pl.DataFrame]):
+    def ingest(self, docs: Union[duckdb.duckdb.DuckDBPyRelation, pl.DataFrame]):
         """
         Ingest a set of documents to the database.
 
         This will retrigger clustering and topic modelling.
         """
 
-        data = self.quack.sql("SELECT body FROM doc").list("body").fetchall()[0][0]
+        data = self.quack.sql("SELECT body FROM docs").list("body").fetchall()[0][0]
 
         # embed all the documents
         bs = 1  # TODO this is only on CPU though!
@@ -171,8 +171,8 @@ class Database:
         self.quack.sql(
             """
         CREATE OR REPLACE TABLE doc AS
-            SELECT doc.*, embedding.*, topic.*
-            FROM doc POSITIONAL JOIN embedding POSITIONAL JOIN topic
+            SELECT docs.*, embedding.*, topic.*
+            FROM docs POSITIONAL JOIN embedding POSITIONAL JOIN topic
         """
         )
 
@@ -186,14 +186,18 @@ class Database:
 
         return self.quack.sql("SELECT * FROM doc")
 
+    @property
     def embeddings(self) -> torch.Tensor:
         """
         Return embeddings for the documents.
         """
 
-        x = self.quack.sql("SELECT embedding FROM doc").fetchnumpy()["embedding"]
-        n, m = len(x), len(x[0])
-        return torch.Tensor(np.concatenate(x).reshape((n, m)))
+        if self.__embeddings__ is None:
+            x = self.quack.sql("SELECT embedding FROM doc").fetchnumpy()["embedding"]
+            n, m = len(x), len(x[0])
+            self.__embeddings__ = torch.Tensor(np.concatenate(x).reshape((n, m)))
+
+        return self.__embeddings__
 
     def sql(self, stmt: str) -> duckdb.duckdb.DuckDBPyRelation:
         """
@@ -207,9 +211,4 @@ class Database:
         Distance of query from the documents.
         """
 
-        return torch.Tensor(
-            self.quack.execute(
-                "SELECT list_cosine_similarity(?, embedding) AS distance FROM doc",
-                [self.__embed__(q).numpy()[0]],
-            ).fetchnumpy()["distance"]
-        )
+        return torch.cosine_similarity(self.embeddings, self.__embed__(q))
