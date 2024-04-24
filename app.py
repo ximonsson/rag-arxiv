@@ -16,7 +16,7 @@ st.caption("Arxiv abstracts.")
 
 @st.cache_resource
 def ld():
-    DB = db.Database.from_config_file("db.yml")
+    DB = db.Database.from_config_file("db.yml", read_only=True)
     embs = DB.embeddings()
     embs_3d = db.Database.__dim_reduce__(embs, 3)  # used for plotting
 

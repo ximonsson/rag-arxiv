@@ -39,20 +39,25 @@ class Database:
             "question-answering", model=generative, tokenizer=generative
         )
 
-    def __ld_storage__(self, backend: str = "duckdb", path: Union[str, None] = None):
-        self.quack = duckdb.connect(path)
+    def __ld_storage__(
+        self,
+        read_only: bool = False,
+        backend: str = "duckdb",
+        path: Union[str, None] = None,
+    ):
+        self.quack = duckdb.connect(path, read_only=read_only)
 
-    def __init__(self, **kwargs):
+    def __init__(self, read_only: bool = False, **kwargs):
         self.__ld_models__(**kwargs["models"])
-        self.__ld_storage__(**kwargs["storage"])
+        self.__ld_storage__(read_only=read_only, **kwargs["storage"])
 
-    def from_config_file(fp: str) -> "Database":
+    def from_config_file(fp: str, read_only: bool = False) -> "Database":
         """
         Create new Database instance from config file path.
         """
 
         with open(fp) as f:
-            return Database(**yaml.safe_load(f))
+            return Database(read_only, **yaml.safe_load(f))
 
     def __embed__(self, doc: Union[str, list[str]]) -> torch.Tensor:
         x = self.retrieval_tokenizer(
