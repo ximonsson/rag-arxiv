@@ -26,17 +26,17 @@ class Database:
     ):
         # Retrieval Model
         self.retrieval_tokenizer = AutoTokenizer.from_pretrained(retrieval)
-        self.retrieval_model = AutoModel.from_pretrained(retrieval)
+        self.retrieval_model = AutoModel.from_pretrained(retrieval).to("cuda")
 
         # Cross encoder model
         self.xenc_tokenizer = AutoTokenizer.from_pretrained(crossencoder)
         self.xenc_model = AutoModelForSequenceClassification.from_pretrained(
             crossencoder
-        )
+        ).to("cuda")
 
         # Generative model
         self.gen_model = transformers.pipeline(
-            "question-answering", model=generative, tokenizer=generative
+            "question-answering", model=generative, tokenizer=generative, device=0
         )
 
     def __ld_storage__(
@@ -63,7 +63,7 @@ class Database:
     def __embed__(self, doc: Union[str, list[str]]) -> torch.Tensor:
         x = self.retrieval_tokenizer(
             doc, padding=True, truncation=True, return_tensors="pt"
-        )
+        ).to("cuda")
         with torch.no_grad():
             y = self.retrieval_model(**x)
 
@@ -156,7 +156,7 @@ class Database:
         data = self.quack.sql("SELECT body FROM docs").list("body").fetchall()[0][0]
 
         # embed all the documents
-        bs = 1  # TODO this is only on CPU though!
+        bs = 64 if torch.cuda.is_available() else 1
         ys = [
             self.__embed__(data[i : i + bs])
             for i in tqdm(torch.arange(0, len(data), step=bs))
