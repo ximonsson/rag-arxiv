@@ -26,17 +26,20 @@ class Database:
     ):
         # Retrieval Model
         self.retrieval_tokenizer = AutoTokenizer.from_pretrained(retrieval)
-        self.retrieval_model = AutoModel.from_pretrained(retrieval).to("cuda")
+        self.retrieval_model = AutoModel.from_pretrained(retrieval).to(self.__device__)
 
         # Cross encoder model
         self.xenc_tokenizer = AutoTokenizer.from_pretrained(crossencoder)
         self.xenc_model = AutoModelForSequenceClassification.from_pretrained(
             crossencoder
-        ).to("cuda")
+        ).to(self.__device__)
 
         # Generative model
         self.gen_model = transformers.pipeline(
-            "question-answering", model=generative, tokenizer=generative, device=0
+            "question-answering",
+            model=generative,
+            tokenizer=generative,
+            device=self.__device__,
         )
 
     def __ld_storage__(
@@ -48,6 +51,7 @@ class Database:
         self.quack = duckdb.connect(path, read_only=read_only)
 
     def __init__(self, read_only: bool = False, **kwargs):
+        self.__device__ = "cuda" if torch.cuda.is_available() else "cpu"
         self.__ld_models__(**kwargs["models"])
         self.__ld_storage__(read_only=read_only, **kwargs["storage"])
         self.__embeddings__ = None
@@ -63,7 +67,7 @@ class Database:
     def __embed__(self, doc: Union[str, list[str]]) -> torch.Tensor:
         x = self.retrieval_tokenizer(
             doc, padding=True, truncation=True, return_tensors="pt"
-        ).to("cuda")
+        ).to(self.__device__)
         with torch.no_grad():
             y = self.retrieval_model(**x)
 
@@ -80,7 +84,7 @@ class Database:
 
         _, i = torch.topk(self.distance(q), n)
         return self.quack.execute(
-            "SELECT * FROM doc WHERE rowid IN (SELECT unnest(?))", [i.numpy()]
+            "SELECT * FROM doc WHERE rowid IN (SELECT unnest(?))", [i.cpu().numpy()]
         ).pl()
 
     def rerank(self, q: str, doc: list[str], n: int) -> tuple:
@@ -90,7 +94,7 @@ class Database:
 
         x = self.xenc_tokenizer(
             [q] * len(doc), doc, padding=True, truncation=True, return_tensors="pt"
-        )
+        ).to(self.__device__)
 
         with torch.no_grad():
             y = self.xenc_model(**x).logits.flatten()
@@ -104,7 +108,7 @@ class Database:
 
         docs = self.retrieve(q, nret)
         s, j = self.rerank(q, docs["body"].to_list(), nx)
-        return docs[j.numpy()]
+        return docs[j.cpu().numpy()]
 
     def __gen__(self, q: str, docs: list[str]) -> str:
         """
@@ -156,12 +160,13 @@ class Database:
         data = self.quack.sql("SELECT body FROM docs").list("body").fetchall()[0][0]
 
         # embed all the documents
+        # larger batch size on GPU only
         bs = 64 if torch.cuda.is_available() else 1
         ys = [
             self.__embed__(data[i : i + bs])
             for i in tqdm(torch.arange(0, len(data), step=bs))
         ]
-        ys = torch.cat(ys, 0)
+        ys = torch.cat(ys, 0).cpu()
         embedding = pl.DataFrame(pl.Series("embedding", ys.numpy()))
 
         # cluster documents
@@ -197,7 +202,7 @@ class Database:
             n, m = len(x), len(x[0])
             self.__embeddings__ = torch.Tensor(np.concatenate(x).reshape((n, m)))
 
-        return self.__embeddings__
+        return self.__embeddings__.to(self.__device__)
 
     def sql(self, stmt: str) -> duckdb.duckdb.DuckDBPyRelation:
         """
@@ -211,4 +216,4 @@ class Database:
         Distance of query from the documents.
         """
 
-        return torch.cosine_similarity(self.embeddings, self.__embed__(q))
+        return torch.cosine_similarity(self.embeddings, self.__embed__(q)).cpu()
