@@ -1,12 +1,11 @@
 import streamlit as st
 import db
-import torch
 import plotly.graph_objects as go
 import duckdb
 import sklearn.cluster
 import os
+import numpy as np
 
-torch.manual_seed(42)
 
 st.set_page_config(layout="centered")
 
@@ -31,16 +30,19 @@ st.write(f"{embs.shape[0]} documents in database")
 def plot(prompt):
     N = embs.shape[0]  # all documents might not be embedded
 
-    color = DB.distance(prompt) if prompt != "" else torch.zeros(N)
-    titles = DB.docs()["title"].fetchall()
+    color = DB.distance(prompt) if prompt != "" else DB.doctopic
+    titles = np.array(DB.docs()["title"].fetchall())
+
+    i = np.random.choice(range(embs_3d.shape[0]), 30000, replace=False)
+
     fig = go.Figure(
         data=[
             go.Scatter3d(
-                x=embs_3d[:, 0],
-                y=embs_3d[:, 1],
-                z=embs_3d[:, 2],
+                x=embs_3d[i, 0],
+                y=embs_3d[i, 1],
+                z=embs_3d[i, 2],
                 mode="markers",
-                text=titles,
+                text=titles[i],
                 marker=dict(
                     size=1,
                     colorscale="reds",
@@ -71,5 +73,6 @@ if prompt != "":
     st.markdown(f"`> {answer['answer']}`")
     st.divider()
     st.dataframe(docs[:, ["id", "title", "authors"]].to_pandas())
-    # plot our data
-    st.plotly_chart(plot(prompt), use_container_width=True)
+
+# plot our data
+st.plotly_chart(plot(prompt), use_container_width=True)
