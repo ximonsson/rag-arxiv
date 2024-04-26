@@ -55,6 +55,7 @@ class Database:
         self.__ld_models__(**kwargs["models"])
         self.__ld_storage__(read_only=read_only, **kwargs["storage"])
         self.__embeddings__ = None
+        self.__doctopic__ = None
 
     def from_config_file(fp: str, read_only: bool = False) -> "Database":
         """
@@ -137,7 +138,7 @@ class Database:
         """
 
         y = (
-            hdbscan.HDBSCAN(min_cluster_size=15)
+            hdbscan.HDBSCAN(min_cluster_size=200)
             .fit(Database.__dim_reduce__(x, 5))
             .labels_
         )
@@ -217,3 +218,21 @@ class Database:
         """
 
         return torch.cosine_similarity(self.embeddings, self.__embed__(q)).cpu()
+
+    @property
+    def doctopic(self) -> np.ndarray:
+        """
+        Each documents topic.
+
+        Result is in the same order as documents are stored in database.
+        """
+
+        if self.__doctopic__ is None:
+            self.__doctopic__ = self.quack.sql("SELECT topic FROM doc").fetchnumpy()[
+                "topic"
+            ]
+
+        return self.__doctopic__
+
+    def __del__(self):
+        self.quack.close()
