@@ -31,9 +31,9 @@ def plot(prompt):
     N = embs.shape[0]  # all documents might not be embedded
 
     color = DB.distance(prompt) if prompt != "" else DB.doctopic
-    titles = np.array(DB.docs()["title"].fetchall())
+    titles = DB.docs()["title"].fetchnumpy()["title"]
 
-    i = np.random.choice(range(embs_3d.shape[0]), 30000, replace=False)
+    i = np.random.choice(range(embs_3d.shape[0]), 100000, replace=False)
 
     fig = go.Figure(
         data=[
@@ -42,11 +42,11 @@ def plot(prompt):
                 y=embs_3d[i, 1],
                 z=embs_3d[i, 2],
                 mode="markers",
-                text=titles[i],
+                text=titles[i].tolist(),
                 marker=dict(
                     size=1,
-                    colorscale="reds",
-                    color=color,
+                    colorscale="jet" if prompt == "" else "reds",
+                    color=color[i],
                 ),
             )
         ]
@@ -56,12 +56,13 @@ def plot(prompt):
     return fig
 
 
-def search():
-    return DB.search(prompt, n_retrieve, 5)
-
-
 n_retrieve = st.slider("Number of documents to retrieve", 0, 200, 20)
+n_rerank = st.slider("Number of documents after reranking", 0, 200, 5)
 prompt = st.text_input("What would you want to ask?")
+
+
+def search():
+    return DB.search(prompt, n_retrieve, n_rerank)
 
 
 if prompt != "":
