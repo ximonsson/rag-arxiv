@@ -78,6 +78,21 @@ class Database:
         mask = x["attention_mask"].unsqueeze(-1).expand(y[0].shape)
         return torch.sum(y[0] * mask, 1) / torch.clamp(mask.sum(1), min=1e-9)
 
+    def retrieve_bm25(self, q: str, n: int) -> pl.DataFrame:
+        """
+        Retrieve documents using the BM25 ranking algorithm.
+        """
+
+        return self.quack.execute(
+            """
+            SELECT *, fts_main_doc.bm25_match(id, ?, fields := 'body') AS score
+            FROM doc
+            WHERE score IS NOT NULL
+            ORDER BY score DESC
+            LIMIT ?""",
+            [q, n],
+        ).pl()
+
     def retrieve(self, q: str, n: int) -> pl.DataFrame:
         """
         Retrieve documents that are most similar to query.
@@ -149,7 +164,16 @@ class Database:
         Generate topics for the clusters.
         """
 
-        pass
+        self.quack.sql(
+            """
+            CREATE OR REPLACE TABLE word AS
+                SELECT unnest(regexp_split_to_array(body, '[\s\W]+')), topic AS w FROM doc;
+            """
+        )
+
+        """
+        select a.*, b.T, log((select count(*) as m from doc) / b.T) from (select w, count(*) as wi, topic from word group by w, topic) as a join (select w, count(*) as T from word group by w) as b on a.w = b.w;
+        """
 
     def ingest(self, docs: Union[duckdb.duckdb.DuckDBPyRelation, pl.DataFrame]):
         """
@@ -178,7 +202,13 @@ class Database:
             """
         CREATE OR REPLACE TABLE doc AS
             SELECT docs.*, embedding.*, topic.*
-            FROM docs POSITIONAL JOIN embedding POSITIONAL JOIN topic
+            FROM docs POSITIONAL JOIN embedding POSITIONAL JOIN topic;
+        """
+        )
+
+        self.quack.sql(
+            """
+        PRAGMA create_fts_index('doc', 'id', 'body', 'title', 'authors', 'abstract');
         """
         )
 
