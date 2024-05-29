@@ -1,8 +1,12 @@
-FROM python:3.9.19-alpine3.20
+FROM python:3.12-alpine
 
 RUN pip install kaggle
 
 WORKDIR /app
 COPY ./extract.sh .
 
-ENTRYPOINT ["sh", "extract.sh"]
+ENV ARXIV_RAW_DIR
+ENV KAGGLE_USERNAME
+ENV KAGGLE_KEY
+
+CMD ["sh", "extract.sh"]
