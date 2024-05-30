@@ -11,7 +11,4 @@ RUN mv duckdb /usr/bin
 COPY transform.sql .
 COPY transform.sh .
 
-ENV ARXIV_CLEAN_FP
-ENV ARXIV_DOC_FP
-
 CMD ["sh", "transform.sh"]

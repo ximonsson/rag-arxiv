@@ -9,9 +9,6 @@ RUN unzip duckdb_cli-linux-amd64.zip
 RUN mv duckdb /usr/bin
 
 COPY load.sh .
-COPY load.sql
-
-ENV ARXIV_RAW_DIR
-ENV ARXIV_CLEAN_FP
+COPY load.sql .
 
 CMD ["sh", "load.sh"]
