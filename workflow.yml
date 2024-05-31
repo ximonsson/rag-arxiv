@@ -1,0 +1,38 @@
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Workflow
+metadata:
+  generateName: rag-arxiv-elt-
+spec:
+  entrypoint: elt
+
+  templates:
+    - name: elt
+      steps:
+        - - name: extract
+          container:
+            image: rag-arxiv_extract
+            env:
+              - name:
+                value:
+              - name:
+                value:
+
+        - - name: load
+          container:
+            image: rag-arxiv_load
+            env:
+              - name:
+                value:
+              - name:
+                value:
+
+        - - name: transform
+          container:
+            image: rag-arxiv_transform
+            env:
+              - name:
+                value:
+              - name:
+                value:
+
