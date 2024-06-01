@@ -6,33 +6,107 @@ metadata:
 spec:
   entrypoint: elt
 
+  volumes:
+    - name: bronze
+      persistentVolumeClaim:
+        claimName: rag-arxiv-bronze
+
+    - name: silver
+      persistentVolumeClaim:
+        claimName: rag-arxiv-silver
+
+    - name: gold
+      persistentVolumeClaim:
+        claimName: rag-arxiv-gold
+
   templates:
+    - name: extract
+      container:
+        image: rag-arxiv_extract
+        imagePullPolicy: Never
+        command:
+         - sh
+         - extract.sh
+
+        volumeMounts:
+          - name: bronze
+            mountPath: /data/bronze
+
+        env:
+          - name: ARXIV_RAW_DIR
+            value: /data/bronze
+
+          - name: KAGGLE_USERNAME
+            valueFrom:
+              secretKeyRef:
+                name: kaggle
+                key: username
+
+          - name: KAGGLE_KEY
+            valueFrom:
+              secretKeyRef:
+                name: kaggle
+                key: key
+
+    - name: load
+      container:
+        image: rag-arxiv_load
+        imagePullPolicy: Never
+        command:
+         - sh
+         - load.sh
+
+        volumeMounts:
+          - name: bronze
+            mountPath: /data/bronze
+
+          - name: silver
+            mountPath: /data/silver
+
+        env:
+          - name: ARXIV_RAW_DIR
+            value: /data/bronze
+
+          - name: ARXIV_CLEAN_FP
+            value: /data/silver/arxiv.parquet
+
+    - name: transform
+      container:
+        image: rag-arxiv_transform
+        imagePullPolicy: Never
+        command:
+         - sh
+         - transform.sh
+
+        volumeMounts:
+          - name: bronze
+            mountPath: /data/bronze
+
+          - name: silver
+            mountPath: /data/silver
+
+          - name: gold
+            mountPath: /data/gold
+
+        env:
+          - name: ARXIV_CLEAN_FP
+            value: /data/silver/arxiv.parquet
+
+          - name: ARXIV_DOC_FP
+            value: /data/gold/arxiv-rag-doc.parquet
+
+
     - name: elt
-      steps:
-        - - name: extract
-          container:
-            image: rag-arxiv_extract
-            env:
-              - name:
-                value:
-              - name:
-                value:
+      dag:
+        tasks:
+          - name: extract
+            template: extract
 
-        - - name: load
-          container:
-            image: rag-arxiv_load
-            env:
-              - name:
-                value:
-              - name:
-                value:
+          - name: load
+            dependencies: [extract]
+            template: load
 
-        - - name: transform
-          container:
-            image: rag-arxiv_transform
-            env:
-              - name:
-                value:
-              - name:
-                value:
+          - name: transform
+            dependencies: [load]
+            template: transform
 

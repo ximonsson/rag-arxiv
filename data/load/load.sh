@@ -7,5 +7,5 @@ if [ ! -e $FILE ]; then
 fi
 
 DB=":memory:"
-ARXIV_RAW_JSON_FP=$FILE duckdb $DB < data/load/load.sql
+ARXIV_RAW_JSON_FP=$FILE duckdb $DB < load.sql
 mv arxiv.parquet $ARXIV_CLEAN_FP
