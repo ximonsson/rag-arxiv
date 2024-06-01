@@ -1,10 +1,13 @@
 ---
 apiVersion: argoproj.io/v1alpha1
 kind: Workflow
+
 metadata:
   generateName: rag-arxiv-elt-
+
 spec:
   entrypoint: elt
+  serviceAccountName: argo-workflow
 
   volumes:
     - name: bronze

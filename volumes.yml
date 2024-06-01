@@ -5,7 +5,7 @@ metadata:
   name: rag-arxiv-bronze
 spec:
   accessModes:
-    - ReadWriteOnce
+    - ReadWriteMany
   volumeName: bronze
   resources:
     requests:
@@ -18,7 +18,7 @@ metadata:
   name: rag-arxiv-silver
 spec:
   accessModes:
-    - ReadWriteOnce
+    - ReadWriteMany
   volumeName: silver
   resources:
     requests:
@@ -31,7 +31,7 @@ metadata:
   name: rag-arxiv-gold
 spec:
   accessModes:
-    - ReadWriteOnce
+    - ReadWriteMany
   volumeName: gold
   resources:
     requests:
